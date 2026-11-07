@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>计算机科学与技术、网络空间安全专业学生信息管理</title>
+  <title>学生信息管理系统</title>
   <style>
     :root { accent-color: #444; color-scheme: light; }
     body { margin: 20px clamp(12px, 2.5vw, 40px); font: 14px/1.5 sans-serif; color: #111; }
@@ -203,7 +203,7 @@
   </style>
 </head>
 <body>
-  <h1>计算机科学与技术、网络空间安全专业学生信息管理</h1>
+  <h1>学生信息管理系统</h1>
   <section id="dashboard" class="dashboard" aria-labelledby="dash-title">
     <div class="dash-top"><h2 id="dash-title">统计概览</h2><button id="dash-toggle" type="button" title="操作说明：收起统计图表，保留当前筛选条件。" aria-expanded="true" aria-controls="dash-body">收起面板</button></div>
     <div id="dash-body">
@@ -481,12 +481,6 @@
     }
     function orderedFields() { return columnOrder.map(key => fieldByKey.get(key)); }
     function shownOrderedFields() { return orderedFields().filter(([key]) => visibleKeys.has(key)); }
-    // 班级号由班级自动带出（8 个班的班级码）
-    const classNameToNumber = {
-      '计科1班': '2520701', '计科2班': '2520702', '计科3班': '2520703',
-      '计科4班': '2520704', '计科5班': '2520705',
-      '网安1班': '2527001', '网安2班': '2527002', '网安3班': '2527003'
-    };
     // 绑定列：拖动其中任意一列时，整组一起移动，组内相对顺序不变
     const linkedColumnGroups = [['parentRelationship', 'parentPhone'], ['className', 'classNumber']];
     function linkedColumnGroupOf(key) {
@@ -1571,7 +1565,6 @@
         const missing = [], format = [], source = [];
         fields.forEach(([key,label]) => { if (!text(record[key])) missing.push(label); });
         const sid = text(record.studentId), identity = text(record.identityNumber).toUpperCase(), birth = text(record.birthMonth);
-        if (sid && !/^\d{10}$/.test(sid)) format.push('学号不是 10 位数字');
         if (sid && ids.get(sid.toUpperCase())?.length > 1) format.push('学号重复，请核对是否重复录入');
         for (const [key,label] of [['phone','学生电话'],['parentPhone','家长电话']]) {
           const phone = text(record[key]);
@@ -1604,13 +1597,6 @@
         const room = roomKey(dorm), occupants = room ? [...rooms.get(room).values()] : [];
         if (occupants.length > 4) format.push(`寝室 ${room} 登记 ${occupants.length} 人，超过每寝室最多 4 人的上限`);
         if (new Set(occupants.map(person=>text(person.sex)).filter(value=>['男','女'].includes(value))).size > 1) format.push(`寝室 ${room} 出现不同性别，请确认住宿安排（不直接判错）`);
-        const cls = text(record.className).match(/^(计科|网安)([1-5])班$/);
-        if (cls && !(cls[1] === '网安' && Number(cls[2]) > 3)) {
-          const expected = (cls[1] === '计科' ? '252070' : '252700') + cls[2];
-          if (text(record.classNumber) && text(record.classNumber) !== expected) format.push('班级号与班级名称不一致');
-          const major = cls[1] === '计科' ? '计算机科学与技术' : '网络空间安全';
-          if (text(record.major) && text(record.major) !== major) format.push('专业与班级名称不一致');
-        }
         const classmates = classes.get(text(record.className)) || [];
         for (const [key,label] of [['college','学院'],['major','专业'],['classNumber','班级号']]) {
           if (text(record[key]) && new Set(classmates.map(person=>text(person[key])).filter(Boolean)).size > 1) format.push('同一班级的'+label+'不一致，请核对班级归属');
@@ -1635,7 +1621,6 @@
       if (!previous || ['identityNumber','birthMonth','sex'].some(key=>value(previous[key]).toUpperCase() !== value(data[key]).toUpperCase())) {
         errors.push(...item.format.filter(issue=>/身份证|出生日期格式或日期值无效/.test(issue)));
       }
-      if (!previous || ['className','classNumber','major'].some(key=>value(previous[key]) !== value(data[key]))) errors.push(...item.format.filter(issue=>['班级号与班级名称不一致','专业与班级名称不一致'].includes(issue)));
       return [...new Set(errors)];
     }
     function qualityView() {
@@ -1988,7 +1973,6 @@
     const dialogInputs = {};
     const dialogSelectOptions = {
       sex: ['男', '女'],
-      className: ['计科1班', '计科2班', '计科3班', '计科4班', '计科5班', '网安1班', '网安2班', '网安3班'],
       isTransfer: ['是', '否']
     };
     fields.forEach(([key, label]) => {
@@ -2011,23 +1995,16 @@
         control = document.createElement('input');
         control.type = (key === 'phone' || key === 'parentPhone') ? 'tel' : 'text';
         if (key === 'birthMonth') control.placeholder = '如 2006-11 或 2006-11-12';
-        if (key === 'studentId') control.inputMode = 'numeric';
       }
       control.id = 'edit-' + key;
       control.dataset.key = key;
       if (key === 'classNumber') {
-        control.readOnly = true;
-        control.placeholder = '选择班级后自动带出';
+        control.placeholder = '可自行填写班级号';
       }
       wrapper.append(control);
       dialogFieldsBox.append(wrapper);
       dialogInputs[key] = control;
     });
-
-    function syncClassNumberFromClassName() {
-      dialogInputs.classNumber.value = classNameToNumber[dialogInputs.className.value] || '';
-    }
-    dialogInputs.className.addEventListener('change', syncClassNumberFromClassName);
 
     function fillStudentDialog(record) {
       fields.forEach(([key]) => { dialogInputs[key].value = record ? (record[key] || '') : ''; });
@@ -2036,7 +2013,6 @@
         dialogInputs.college.value = first.college || '';
         dialogInputs.isTransfer.value = '否';
       }
-      syncClassNumberFromClassName();
     }
 
     function openStudentDialog(record) {
@@ -2063,10 +2039,8 @@
     function saveStudentFromDialog() {
       const data = {};
       fields.forEach(([key]) => { data[key] = String(dialogInputs[key].value ?? '').trim(); });
-      // 班级号与班级绑定：始终按所选班级自动带出
-      data.classNumber = classNameToNumber[data.className] || data.classNumber || '';
       if (!data.name) { dialogError.textContent = '姓名不能为空'; return; }
-      if (!/^\d{10}$/.test(data.studentId)) { dialogError.textContent = '学号需为 10 位数字'; return; }
+      if (!data.studentId) { dialogError.textContent = '学号不能为空'; return; }
       const duplicate = records.find(record => record !== editingRecord && String(record.studentId).trim() === data.studentId);
       if (duplicate) { dialogError.textContent = '该学号已存在：' + data.studentId; return; }
       if (data.phone) data.phone = normalizeDialogPhone(data.phone);
